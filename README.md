@@ -1,1 +1,1 @@
-# eigogames
+# Go Go Eigo!
