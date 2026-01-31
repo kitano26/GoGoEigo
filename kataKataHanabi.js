@@ -8,6 +8,7 @@ class KataKataHanabi extends Phaser.Scene {
      */
     preload() {
         this.load.image('redLauncher', 'assets/images/redLauncher.png');
+        this.load.plugin('rexbbcodetextplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexbbcodetextplugin.min.js', true);
     }
 
     /**
@@ -36,15 +37,14 @@ class KataKataHanabi extends Phaser.Scene {
         this.targetWord =  Phaser.Math.RND.pick(this.wordList);
 
         // Display target word text
-        this.targetWordText = this.add.text(wordBoxX, wordBoxY, this.targetWord, {
+        this.targetWordText = this.add.rexBBCodeText(wordBoxX, wordBoxY, this.targetWord, {
             fontFamily: 'Comic Sans MS',
             fontSize: 36,
             color: '#000000'
         });
         this.targetWordText.setOrigin(0.5, 0.5);
         this.targetWordText.setPosition(wordBoxX + wordBoxWidth / 2, wordBoxY + wordBoxHeight / 2);
-
-        
+ 
         // Store user input
         this.userInput = ''; 
 
@@ -78,15 +78,15 @@ class KataKataHanabi extends Phaser.Scene {
         const key = event.key.toLowerCase();    // Normalize to lowercase
         // Only process a-z keys
         if (key.length === 1 && key >= 'a' && key <= 'z') {
-            // check if key matches next letter in target word
+            // Check if key matches next letter in target word
             if (key === this.targetWord.charAt(this.userInput.length)) {
-                this.userInput += key;
-                console.log(this.userInput);
+                this.userInput += key;                                              // Append key to user input
+                this.correctText = `[color=green]${this.userInput}[/color]`;        // Only make correct letters in green
+                this.targetWordText.setText(this.correctText + this.targetWord.slice(this.userInput.length)); // Update displayed text
             }
 
             // Check if user input matches target word
             if (this.userInput === this.targetWord) {
-                console.log('Word completed!');
 
                 // Select new target word
                 this.targetWord = Phaser.Math.RND.pick(this.wordList);
@@ -94,6 +94,7 @@ class KataKataHanabi extends Phaser.Scene {
 
                 // Clear user input
                 this.userInput = '';
+                this.correctText = '';
             }
         }
     }
