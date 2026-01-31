@@ -7,8 +7,13 @@ class KataKataHanabi extends Phaser.Scene {
      * Load assets into scene
      */
     preload() {
-        this.load.image('redLauncher', 'assets/images/redLauncher.png');
+        // Load BBCode text plugin
         this.load.plugin('rexbbcodetextplugin', 'https://raw.githubusercontent.com/rexrainbow/phaser3-rex-notes/master/dist/rexbbcodetextplugin.min.js', true);
+        
+        // Load images
+        this.load.image('redLauncher', 'assets/images/redLauncher.png');
+        this.load.image('spark', 'assets/particles/fireworkSpark.png');
+        this.load.image('fireworkTrail', 'assets/images/fireworkTrail.png');
     }
 
     /**
@@ -18,7 +23,7 @@ class KataKataHanabi extends Phaser.Scene {
         // Add launcher image
         this.launcher = this.add.image(0, 250, 'redLauncher');
         this.launcher.setScale(0.1);
-        this.launcher.xSpeed = 1;
+        this.launcher.xSpeed = 2;
 
         // Word box configuration
         const wordBoxWidth = 300;
@@ -40,7 +45,7 @@ class KataKataHanabi extends Phaser.Scene {
         this.targetWordText = this.add.rexBBCodeText(wordBoxX, wordBoxY, this.targetWord, {
             fontFamily: 'Comic Sans MS',
             fontSize: 36,
-            color: '#000000'
+            color: '#666666ff'
         });
         this.targetWordText.setOrigin(0.5, 0.5);
         this.targetWordText.setPosition(wordBoxX + wordBoxWidth / 2, wordBoxY + wordBoxHeight / 2);
@@ -57,19 +62,30 @@ class KataKataHanabi extends Phaser.Scene {
      */
     update() {
         // Move launcher
-        // this.launcher.x += this.launcher.xSpeed;
+        this.launcher.x += this.launcher.xSpeed;
 
         // Reset launcher position if it goes off screen
-        if (this.launcher.x > this.scale.width + this.launcher.width / 2) {
-            this.launcher.x = -this.launcher.width / 2;
+        if (this.launcher.x > this.scale.width) {
+            this.launcher.x = 0;
+            this.setNewTargetWord();
         }
     }
 
-    /**
-     * CUSTOM METHODS
-     */
+    /**********************
+     *   CUSTOM METHODS   *
+     **********************/
     
-    // Handle keyboard input
+    /**
+     * Set new target word
+     */
+    setNewTargetWord() {
+        this.targetWord = Phaser.Math.RND.pick(this.wordList);
+        this.targetWordText.setText(this.targetWord);
+    }
+    
+    /**
+     * Handle keyboard input
+     */
     handleKey(event) {
         if (event.repeat) {
             return;
@@ -87,10 +103,11 @@ class KataKataHanabi extends Phaser.Scene {
 
             // Check if user input matches target word
             if (this.userInput === this.targetWord) {
+                // Launch firework
+                this.explodeFirework(this.launcher.x, 100);
 
                 // Select new target word
-                this.targetWord = Phaser.Math.RND.pick(this.wordList);
-                this.targetWordText.setText(this.targetWord);
+                this.setNewTargetWord();
 
                 // Clear user input
                 this.userInput = '';
@@ -99,6 +116,58 @@ class KataKataHanabi extends Phaser.Scene {
         }
     }
 
+    /**
+     * Launch firework from (x, y)
+     */
+    launchFirework() {
+        const launcherX = this.launcher.x;
+        const launcherY = this.launcher.y;
+
+        // Firework sprite
+        const rocket = this.add.sprite(launcherX, launcherY, 'redLauncher');
+
+        // Move rocket up using a tween
+        this.tweens.add({
+            targets: rocket,
+            y: launcherY - 300,  // height of the launch
+            duration: 800,
+            ease: 'Power2',
+            onComplete: () => {
+                // explode when reached top
+                this.explodeFirework(rocket.x, rocket.y);
+                rocket.destroy();
+            }
+        });
+    }
+
+    /**
+     * Create firework explosion at (x, y)
+     */
+    explodeFirework(x, y) {
+        const emitter = this.add.particles(x, y, 'spark', {
+            speed: { min: 100, max: 200 },
+            angle: { min: 0, max: 360 },
+            scale: { start: 0.2, end: 0 },
+            lifespan: { min: 300, max: 600 },
+            blendMode: 'ADD',
+            quantity: 500,
+//             tint: Phaser.Display.Color.GetColor(
+//     Phaser.Math.Between(50, 255),
+//     Phaser.Math.Between(50, 255),
+//     Phaser.Math.Between(50, 255)
+// )
+            tint: [     
+                0xFF0000, // deep red
+                0xFF4500, // orange red
+                0xFFA500, // orange
+                0xFFD700, // gold
+                0xFFFF00, // yellow
+        ]
+
+        });
+
+        emitter.explode(50);
+    }
 }
 
 
