@@ -29,8 +29,8 @@ class HanabiGameScene extends Phaser.Scene {
         this.launcherYInitial = 250;
 
         this.launcher = this.add.sprite(this.launcherXInitial, this.launcherYInitial, 'redLauncher');
+        this.launcher.isMoving = true;
         this.launcher.setScale(0.1);
-        this.launcher.xSpeed = 0.8;
         this.launcher.setDepth(-1); // send to back
 
         // Word box configuration
@@ -68,11 +68,18 @@ class HanabiGameScene extends Phaser.Scene {
     }
 
     /**
-     * Update scene
+     * Update scene each frame  
      */
-    update() {
-        // Move launcher
-        this.launcher.x += this.launcher.xSpeed;
+    update(time, delta) {
+        // Move launcher across screen
+        if (!this.launcher.isMoving) {
+            return;
+        }
+
+        const percentPerSecond = 0.2; // 20% of screen width per second
+        const xSpeed = this.scale.width * percentPerSecond;
+
+        this.launcher.x += xSpeed * (delta / 1000);
 
         // Reset if launcher goes off screen
         if (this.launcher.x > this.scale.width) {
@@ -120,8 +127,7 @@ class HanabiGameScene extends Phaser.Scene {
             // Check if user input matches target word
             if (this.userInput === this.targetWord) {
                 // Stop moving launcher temporarily
-                this.launcher.xSpeed = 0;
-                this.launcher.x
+                this.launcher.isMoving = false;
 
                 // Launch firework
                 this.launchFirework();
@@ -161,7 +167,7 @@ class HanabiGameScene extends Phaser.Scene {
                     this.launcher.angle = 0;
                     this.launcher.x = this.launcherXInitial;
                     this.launcher.y = this.launcherYInitial;
-                    this.launcher.xSpeed = 0.8;
+                    this.launcher.isMoving = true;
                 });
             }
         });
