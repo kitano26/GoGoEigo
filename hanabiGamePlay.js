@@ -74,7 +74,6 @@ class HanabiGameScene extends Phaser.Scene {
             color: '#666666ff'
         });
         this.remainingText.setOrigin(0, 0.5);
-        // this.remainingText.setPosition(this.wordBoxX + WORD_BOX_WIDTH / 2, this.wordBoxY + WORD_BOX_HEIGHT / 2);
         this.remainingText.setDepth(1); // bring to front
 
         // Text to show correctly typed letters in green
@@ -85,7 +84,6 @@ class HanabiGameScene extends Phaser.Scene {
             color: 'rgb(0, 219, 69)'
         });
         this.typedText.setOrigin(0, 0.5);
-        // this.typedText.setPosition(this.wordBoxX + WORD_BOX_WIDTH / 2, this.wordBoxY + WORD_BOX_HEIGHT / 2);
         this.typedText.setDepth(2); // bring to front of target word
 
         // Store user input
@@ -170,7 +168,6 @@ class HanabiGameScene extends Phaser.Scene {
             // Reset target word and user input
             this.setNewTargetWord();
             this.userInput = '';
-            this.correctText = '';
         }
     }
 
@@ -230,6 +227,37 @@ class HanabiGameScene extends Phaser.Scene {
                     this.typedText.setText(this.userInput);
                     this.remainingText.setText(this.targetWord.slice(this.userInput.length));
                     this.remainingText.setX(this.typedText.x + this.typedText.width); // shift right by typed portion width
+                } else {
+                    // const origWordBoxX = this.wordBox.x;
+                    // const origTypedX = this.typedText.x;
+                    // const origRemainingX = this.remainingText.x;
+
+                    // const offsets = [-10, 10, -8, 8, -5, 5, -2, 2, 0];
+                    // let step = 0;
+
+                    // this.time.addEvent({
+                    //     delay: 40,
+                    //     repeat: offsets.length - 1,
+                    //     callback: () => {
+                    //         const dx = offsets[step++];
+                    //         this.wordBox.setX(origWordBoxX + dx);
+                    //         this.typedText.setX(origTypedX + dx);
+                    //         this.remainingText.setX(origRemainingX + dx);
+                    //     }
+                    // });
+
+                    const originalX = this.wordBox.x;
+
+                    this.tweens.add({
+                        targets: this.wordBox,
+                        x: originalX + 10,
+                        duration: 35,
+                        yoyo: true,
+                        repeat: 3,
+                        onComplete: () => {
+                            this.wordBox.x = originalX;
+                        }
+                    });
                 }
 
                 // Check if user input matches target word
@@ -265,7 +293,7 @@ class HanabiGameScene extends Phaser.Scene {
         // Move rocket up using a tween
         this.tweens.add({
             targets: this.launcher,
-            y: Phaser.Math.Between(this.launcher.y - 120, this.launcher.y - 50),  // height of the launch
+            y: Phaser.Math.Between(this.launcher.y - 400, this.launcher.y - 100),  // height of the launch
             duration: 800,
             ease: 'Power2',
             onComplete: () => {
@@ -291,12 +319,11 @@ class HanabiGameScene extends Phaser.Scene {
      */
     explodeFirework(x, y) {
         const emitter = this.add.particles(x, y, 'spark', {
-            speed: { min: 100, max: 200 },
+            speed: { min: 250, max: 500 },
             angle: { min: 0, max: 360 },
-            scale: { start: 0.2, end: 0 },
+            scale: { start: 0.5, end: 0 },
             lifespan: { min: 300, max: 600 },
             blendMode: 'ADD',
-            quantity: 500,
             tint: [     
                 0xFF0000, // deep red
                 0xFF4500, // orange red
@@ -308,6 +335,7 @@ class HanabiGameScene extends Phaser.Scene {
         });
 
         emitter.explode(50);
+        this.time.delayedCall(600, () => emitter.destroy());
     }
 
     /**
