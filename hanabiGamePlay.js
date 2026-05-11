@@ -6,6 +6,9 @@ const WORD_BOX_MARGIN = 20;
 // target word font size
 const WORD_FONT_SIZE = '45px';
 
+// points awarded per word length (8+ defaults to 600)
+const WORD_SCORES = { 3: 100, 4: 150, 5: 225, 6: 325, 7: 450 };
+
 class HanabiGameScene extends Phaser.Scene {
     constructor() {
         super({ key: 'HanabiGameScene' });
@@ -31,14 +34,7 @@ class HanabiGameScene extends Phaser.Scene {
         // Initialize game state
         this.gameState = 'playing'; // can be 'playing' or 'gameOver'
 
-        // Add launcher sprite
-        this.launcherXInitial = 60;
-        this.launcherYInitial = this.scale.height - 150;
-
-        this.launcher = this.add.sprite(this.launcherXInitial, this.launcherYInitial, 'redLauncher');
-        this.launcher.isMoving = true;
-        this.launcher.setScale(0.2);
-        this.launcher.setDepth(-1); // send to back
+        this.setupLauncher();
 
         // Word box configuration
         this.wordBoxX = (this.scale.width - WORD_BOX_WIDTH) / 2;  // centered regardless of screen width
@@ -68,13 +64,14 @@ class HanabiGameScene extends Phaser.Scene {
         // min/max word lengths to draw from at that tier.
         // Words are picked from any bucket whose length falls in [minLen, maxLen].
         this.scoreTiers = [
-            { minScore:    0, minLen: 3, maxLen: 3 },  // 0-499
-            { minScore:  500, minLen: 3, maxLen: 4 },  // 500-1199
-            { minScore: 1200, minLen: 4, maxLen: 4 },  // 1200-1999
-            { minScore: 2000, minLen: 4, maxLen: 5 },  // 2000-2899
-            { minScore: 2800, minLen: 5, maxLen: 5 },  // 2900-3899
-            { minScore: 3900, minLen: 5, maxLen: 6 },  // 3900-4999
-            { minScore: 5000, minLen: 4, maxLen: 99 }, // 4000+
+            { minScore:    0, minLen: 3, maxLen: 3 },
+            { minScore:  400, minLen: 3, maxLen: 4 },
+            { minScore: 1000, minLen: 3, maxLen: 5 },
+            { minScore: 2000, minLen: 4, maxLen: 5 },
+            { minScore: 3200, minLen: 4, maxLen: 6 },
+            { minScore: 4500, minLen: 4, maxLen: 7 },
+            { minScore: 6000, minLen: 5, maxLen: 8 },
+            { minScore: 8000, minLen: 3, maxLen: 99 },
         ];
 
         this.currentTierIndex = 0;
@@ -98,9 +95,7 @@ class HanabiGameScene extends Phaser.Scene {
             fontFamily: 'Comic Sans MS',
             fontSize: WORD_FONT_SIZE,
             color: '#666666ff'
-        });
-        this.remainingText.setOrigin(0, 0.5);
-        this.remainingText.setDepth(1); // bring to front
+        }).setOrigin(0, 0.5).setDepth(1); // bring to front
 
         // Text to show correctly typed letters in green
         this.typedText = '';
@@ -108,37 +103,13 @@ class HanabiGameScene extends Phaser.Scene {
             fontFamily: 'Comic Sans MS',
             fontSize: WORD_FONT_SIZE,
             color: 'rgb(0, 219, 69)'
-        });
-        this.typedText.setOrigin(0, 0.5);
-        this.typedText.setDepth(2); // bring to front of target word
+        }).setOrigin(0, 0.5).setDepth(2); // bring to front of target word
 
         // Store user input
         this.userInput = ''; 
 
         // Listen for keyboard input
         this.input.keyboard.on('keydown', this.handleKey, this);
-
-        // Timer: 60-second countdown
-        this.timeLeft = 60; // seconds
-        this.timerText = this.add.text(this.scale.width - 20,
-            20,
-            `Time: ${this.timeLeft}`,
-            {
-                fontSize: '28px',
-                color: '#ffd700',
-                stroke: '#ffffffff',
-                strokeThickness: 2
-            }
-            ).setOrigin(1, 0);
-
-        this.timerText.setShadow(0, 0, '#ff00f2ff', 15, true, true);  
-
-        this.timerEvent = this.time.addEvent({
-            delay: 1000,
-            callback: this.onTimerTick,
-            callbackScope: this,
-            loop: true
-        });
 
         // Score
         this.score = 0;
@@ -147,28 +118,9 @@ class HanabiGameScene extends Phaser.Scene {
             color: '#ffffff'
         });
 
-        // Create game over texts
-        // Show game over text
-        const centerX = this.scale.width / 2;
-        const centerY = this.scale.height / 2;
-        this.gameOverText = this.add.text(centerX, centerY - 20, 'Game Over', {
-            fontSize: '48px',
-            color: '#ff0000',
-            fontStyle: 'bold'
-        }).setOrigin(0.5);
-        this.gameOverText.setVisible(false); // hide until game over
-        
-        this.highScoreText = this.add.text(centerX, centerY + 50, 'NEW HIGH SCORE!', {
-            fontSize: '32px',
-            color: '#72d677ff'
-        }).setOrigin(0.5);
-        this.highScoreText.setVisible(false); // hide until game over
+        this.setupTimer();
 
-        this.finalScoreText = this.add.text(centerX, centerY + 90, `Final Score: ${this.score}`, {
-            fontSize: '32px',
-            color: '#ffffff'
-        }).setOrigin(0.5);
-        this.finalScoreText.setVisible(false); // hide until game over
+        this.setupGameOverScreen();
 
     }
 
@@ -200,6 +152,101 @@ class HanabiGameScene extends Phaser.Scene {
     /**********************
      *   CUSTOM METHODS   *
      **********************/
+
+    /**
+     * Create and position the launcher sprite, and set it to move across the screen
+     */
+    setupLauncher() {
+        this.launcherXInitial = 100;
+        this.launcherYInitial = this.scale.height - 150;
+
+        this.launcher = this.add.sprite(this.launcherXInitial, this.launcherYInitial, 'redLauncher');
+        this.launcher.isMoving = true;
+        this.launcher.setScale(0.2);
+        this.launcher.setDepth(-1); // send to back
+    }
+
+    /**
+     * Create timer
+     */
+    setupTimer(){
+        // Timer: 60-second countdown
+        this.timeLeft = 60; // seconds
+        this.timerText = this.add.text(this.scale.width - 20,
+            20,
+            `Time: ${this.timeLeft}`,
+            {
+                fontSize: '28px',
+                color: '#ffd700',
+                stroke: '#ffffffff',
+                strokeThickness: 2
+            }
+            ).setOrigin(1, 0);
+
+        this.timerText.setShadow(0, 0, '#ff00f2ff', 15, true, true);  
+
+        this.timerEvent = this.time.addEvent({
+            delay: 1000,
+            callback: this.onTimerTick,
+            callbackScope: this,
+            loop: true
+        });
+    }
+
+    /** 
+     * Create Game Over screen with final score and high score notification
+    */
+    setupGameOverScreen() {
+        const centerX = this.scale.width / 2;
+        const centerY = this.scale.height / 2;
+
+        // Create game over text
+        this.gameOverText = this.add.text(centerX, centerY - 20, 'Game Over', {
+            fontSize: '48px',
+            color: '#03bafc',
+            fontStyle: 'bold'
+        }).setOrigin(0.5);
+        this.gameOverText.setVisible(false); // hide until game over
+        
+        // Create high score text (only shown if player beats previous high score)
+        this.highScoreText = this.add.text(centerX, centerY + 50, 'NEW HIGH SCORE!', {
+            fontSize: '32px',
+            color: '#b8336a'
+        }).setOrigin(0.5);
+        this.highScoreText.setVisible(false); // hide until game over
+
+        // Create final score text 
+        this.finalScoreText = this.add.text(centerX, centerY + 90, `Final Score: ${this.score}`, {
+            fontSize: '32px',
+            color: '#fdfcdc'
+        }).setOrigin(0.5);
+        this.finalScoreText.setVisible(false); // hide until game over
+
+        // Create restart button
+        const btnW = 220;
+        const btnH = 55;
+        this.restartButton = this.add.rectangle(centerX, centerY + 170, btnW, btnH, 0x03bafc)
+            .setStrokeStyle(3, 0xffffff)
+            .setInteractive({ useHandCursor: true })
+            .setVisible(false);
+ 
+        this.restartButtonText = this.add.text(centerX, centerY + 170, '▶  Play Again', {
+            fontSize: '26px',
+            color: '#ffffff',
+            fontStyle: 'bold'
+        }).setOrigin(0.5).setVisible(false);
+ 
+        // Hover effects
+        this.restartButton.on('pointerover', () => {
+            this.restartButton.setFillStyle(0xF07167);
+        });
+        this.restartButton.on('pointerout', () => {
+            this.restartButton.setFillStyle(0x03BAFC);
+        });
+        this.restartButton.on('pointerdown', () => {
+            this.restartGame();
+        });
+    }
 
     /**
      * Pick a new target word based on current length tier
@@ -257,14 +304,6 @@ class HanabiGameScene extends Phaser.Scene {
             return;
         }
 
-        if (this.gameState  === 'gameOver') {
-            if (event.key === "Enter") {
-                console.log("Restarting game...");
-                this.restartGame();
-            }
-            return;
-        }
-
         if (this.gameState === "playing") {
             const key = event.key.toLowerCase();    // Normalize to lowercase
         
@@ -293,8 +332,9 @@ class HanabiGameScene extends Phaser.Scene {
 
                 // Check if user input matches target word
                 if (this.userInput === this.targetWord) {
-                    // Increment score
-                    this.score += 100;
+                    // Increment score based on word length
+                    const points = WORD_SCORES[this.targetWord.length] ?? 600;
+                    this.score += points;
                     this.scoreText.setText(`Score: ${this.score}`);
 
                     // Advance tier index if score has crossed the next threshold
@@ -309,7 +349,6 @@ class HanabiGameScene extends Phaser.Scene {
                     // Launch firework
                     this.launchFirework();
 
-
                     // Select new target word
                     this.setTargetWord();
 
@@ -318,6 +357,7 @@ class HanabiGameScene extends Phaser.Scene {
                 }
             }
         }
+
     }
 
     /**
@@ -330,7 +370,7 @@ class HanabiGameScene extends Phaser.Scene {
         // Move rocket up using a tween
         this.tweens.add({
             targets: this.launcher,
-            y: Phaser.Math.Between(this.launcher.y - 400, this.launcher.y - 100),  // height of the launch
+            y: Phaser.Math.Between(this.launcherYInitial - 400, this.launcherYInitial - 100),  // height of the launch
             duration: 800,
             ease: 'Power2',
             onComplete: () => {
@@ -363,7 +403,7 @@ class HanabiGameScene extends Phaser.Scene {
             ],
             4: [
                 [ 0x00FF7F, 0x7CFC00, 0xFFFFFF, 0xADFF2F ], // electric lime + white
-                [ 0xFF8C00, 0xFFD700, 0xFF4500, 0xFFEC8B ], // orange fire
+                [ 0x00FA9A, 0x00FF00, 0x7FFF00, 0x66CDAA ], // mint/spring
                 [ 0x006400, 0x228B22, 0x90EE90, 0x00FF00 ], // dark to bright green
             ],
             5: [
@@ -382,6 +422,7 @@ class HanabiGameScene extends Phaser.Scene {
                 [ 0xFF00FF, 0xC71585, 0xFFD700, 0xDDA0DD ], // violet + gold clash
             ],
         };
+
         const defaultPalettes = [
             [ 0xFF0000, 0xFFD700, 0x00FF00, 0x00BFFF, 0xFF00FF ], // full spectrum
             [ 0xFF4500, 0xFFFFFF, 0x00BFFF, 0xFF1493, 0x7FFF00 ], // vivid clash
@@ -389,7 +430,7 @@ class HanabiGameScene extends Phaser.Scene {
         ];
  
  
-        const colorPalette = palettes[wordLength] ?? defaultPalette;
+        const colorPalette = palettes[wordLength] ?? defaultPalettes;
         const fireworkColor = Phaser.Math.RND.pick(colorPalette);
 
         const emitter = this.add.particles(x, y, 'spark', {
@@ -403,31 +444,6 @@ class HanabiGameScene extends Phaser.Scene {
 
         emitter.explode(50);
         this.time.delayedCall(600, () => emitter.destroy());
-    }
-
-    /**
-     * End the game and show final score
-     */
-    endGame() {
-        this.gameState = 'gameOver';
-        this.timerEvent.remove(false); // stop timer
-        this.launcher.isMoving = false; // stop launcher movement
-        this.wordBox.setVisible(false); // Hide word box           
-        this.typedText.setText('');
-        this.remainingText.setText('');
-
-        this.gameOverText.setVisible(true);
-        this.finalScoreText.setText(`Final Score: ${this.score}`);
-        this.finalScoreText.setVisible(true);
-
-        // Get saved high score
-        const savedHighScore = localStorage.getItem('kataHanabiHighScore');
-
-        // If no high score yet OR new score is higher
-        if (!savedHighScore || this.score > parseInt(savedHighScore)) {
-            localStorage.setItem('kataHanabiHighScore', this.score);
-            this.highScoreText.setVisible(true);
-        }
     }
 
     /**
@@ -446,6 +462,41 @@ class HanabiGameScene extends Phaser.Scene {
         // Check for game over
         if (this.timeLeft <= 0) {
             this.endGame();
+        }
+    }
+
+    /**
+     * End the game and show final score
+     */
+    endGame() {
+        this.gameState = 'gameOver';
+
+        this.timerEvent.remove(false); // stop timer
+        this.launcher.isMoving = false; // stop launcher movement
+
+
+        // Hide game assets
+        this.launcher.setVisible(false);
+        this.wordBox.setVisible(false); // Hide word box   
+        this.typedText.setVisible(false);
+        this.remainingText.setVisible(false);        
+        // this.typedText.setText('');
+        // this.remainingText.setText('');
+
+        // Show game over assets
+        this.gameOverText.setVisible(true);
+        this.finalScoreText.setText(`Final Score: ${this.score}`);
+        this.finalScoreText.setVisible(true);
+        this.restartButton.setVisible(true);
+        this.restartButtonText.setVisible(true);
+
+        // Get saved high score
+        const savedHighScore = localStorage.getItem('kataHanabiHighScore');
+
+        // If no high score yet OR new score is higher
+        if (!savedHighScore || this.score > parseInt(savedHighScore)) {
+            localStorage.setItem('kataHanabiHighScore', this.score);
+            this.highScoreText.setVisible(true);
         }
     }
 
