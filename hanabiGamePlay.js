@@ -329,19 +329,6 @@ class HanabiGameScene extends Phaser.Scene {
                 .setDepth(-9);
         }
 
-        // ── Moon ──────────────────────────────────────────────────────────────
-        const moonX = W * 0.82;
-        const moonY = H * 0.18;
-
-        // Outer halo (large, very faint)
-        this.add.circle(moonX, moonY, 60, 0xd4eeff, 0.08).setDepth(-8);
-        // Mid halo
-        this.add.circle(moonX, moonY, 44, 0xd4eeff, 0.13).setDepth(-8);
-        // Moon body
-        this.add.circle(moonX, moonY, 30, 0xe8f4ff, 1.0).setDepth(-8);
-        // Shadow overlay (crescent effect)
-        this.add.circle(moonX + 10, moonY - 4, 26, 0x0a1a3a, 1.0).setDepth(-7);
-
         // ── Stars ──────────────────────────────────────────────────────────────
         const STAR_COUNT = 120;
         this.stars = [];
@@ -428,30 +415,87 @@ class HanabiGameScene extends Phaser.Scene {
     /**
      * Create timer
      */
-    setupTimer(){
-        // Timer: 60-second countdown
-        this.timeLeft = 5; // seconds
-        this.timerText = this.add.text(this.scale.width - 20,
-            20,
-            `Time: ${this.timeLeft}`,
-            {
-                fontSize: '28px',
-                color: '#ffd700',
-                stroke: '#ffffffff',
-                strokeThickness: 2
-            }
-            ).setOrigin(1, 0);
+    // setupTimer(){
+    //     // Timer: 60-second countdown
+    //     this.timeLeft = 5; // seconds
+    //     this.timerText = this.add.text(this.scale.width - 20,
+    //         20,
+    //         `Time: ${this.timeLeft}`,
+    //         {
+    //             fontSize: '28px',
+    //             color: '#ffd700',
+    //             stroke: '#ffffffff',
+    //             strokeThickness: 2
+    //         }
+    //         ).setOrigin(1, 0);
 
-        this.timerText.setShadow(0, 0, '#ff00f2ff', 15, true, true);  
+    //     this.timerText.setShadow(0, 0, '#ff00f2ff', 15, true, true);  
 
-        this.timerEvent = this.time.addEvent({
-            delay: 1000,
-            callback: this.onTimerTick,
-            callbackScope: this,
-            loop: true
-        });
+    //     this.timerEvent = this.time.addEvent({
+    //         delay: 1000,
+    //         callback: this.onTimerTick,
+    //         callbackScope: this,
+    //         loop: true
+    //     });
+    // }
+
+    setupTimer() {
+          this.timeLeft  = 60;
+    this.totalTime = 60;
+
+       const R  = 38;
+    this.moonR = R;
+
+    // Position in Phaser coords
+    const phaserCX = this.scale.width - 70;
+    const phaserCY = 70;
+
+    // Create a small HTML canvas overlay on top of the Phaser canvas
+    const size = (R + 26) * 2; // enough room for halos
+    this.moonCanvas = document.createElement('canvas');
+    this.moonCanvas.width  = size;
+    this.moonCanvas.height = size;
+    this.moonCanvas.style.cssText = `
+        position: absolute;
+        pointer-events: none;
+        left: ${phaserCX - size / 2}px;
+        top:  ${phaserCY - size / 2}px;
+    `;
+
+    // Insert it as a sibling of the Phaser canvas, inside the same parent
+    const phaserCanvas = this.sys.game.canvas;
+    phaserCanvas.parentElement.style.position = 'relative';
+    phaserCanvas.parentElement.appendChild(this.moonCanvas);
+
+    this.moonCtx = this.moonCanvas.getContext('2d');
+    this.moonLocalCX = size / 2; // centre in local canvas coords
+    this.moonLocalCY = size / 2;
+
+    // Label below moon (still a Phaser text object)
+    this.timerText = this.add.text(phaserCX, phaserCY + R + 16, `${this.timeLeft}s`, {
+        fontSize: '16px',
+        color: '#aaccee',
+        fontFamily: 'Comic Sans MS',
+    }).setOrigin(0.5).setDepth(9).setAlpha(0.8);
+
+    // Clean up overlay when scene shuts down (e.g. restart)
+    this.events.once('shutdown', () => {
+    if (this.moonCanvas) {
+        this.moonCanvas.remove();
+        this.moonCanvas = null;  // ← ADD THIS so the guard works
+        this.moonCtx = null;
     }
+});
+    this.updateMoonTimer();
 
+    this.timerEvent = this.time.addEvent({
+        delay: 1000,
+        callback: this.onTimerTick,
+        callbackScope: this,
+        loop: true
+    });
+
+    }
     /** 
      * Create Game Over screen with final score and high score notification
     */
@@ -712,22 +756,103 @@ class HanabiGameScene extends Phaser.Scene {
     }
 
     /**
+     * Redraws the mask rect so the bright moon fill is visible
+     * only for the fraction of time remaining (fills from bottom up).
+     */
+Copy
+updateMoonTimer() {
+    if (!this.moonCanvas) return;
+
+    const fraction = this.timeLeft / this.totalTime;
+    const cvs = this.moonCanvas;
+    cvs.width = cvs.width; // hard clear
+    const ctx = cvs.getContext('2d');
+    const cx  = this.moonLocalCX;
+    const cy  = this.moonLocalCY;
+    const R   = this.moonR;
+
+    // Halos
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 22, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(212,238,255,0.07)';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R + 12, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(212,238,255,0.12)';
+    ctx.fill();
+
+    // Clip all moon drawing to circle boundary
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.clip();
+
+    // Dark base
+    ctx.fillStyle = '#0a1228';
+    ctx.fillRect(cx - R, cy - R, R * 2, R * 2);
+
+    if (fraction > 0) {
+        // tX: -R = full moon, 0 = half moon, +R = new moon
+        const tX = R * (1 - fraction * 2);
+        const STEPS = 120;
+
+        ctx.beginPath();
+        // Right semicircle top → bottom
+        for (let i = 0; i <= STEPS; i++) {
+            const a = -Math.PI / 2 + Math.PI * i / STEPS;
+            const x = cx + Math.cos(a) * R;
+            const y = cy + Math.sin(a) * R;
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        // Terminator ellipse bottom → top (NO closePath!)
+        for (let i = 0; i <= STEPS; i++) {
+            const a = Math.PI / 2 - Math.PI * i / STEPS;
+            ctx.lineTo(cx + Math.cos(a) * tX, cy + Math.sin(a) * R);
+        }
+        // No closePath — path meets naturally at the top
+
+        ctx.fillStyle = '#e8f4ff';
+        ctx.fill();
+    }
+
+    ctx.restore();
+
+    // Rim
+    ctx.beginPath();
+    ctx.arc(cx, cy, R, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(170,204,238,0.45)';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+    }
+
+    
+
+    /**
      * Timer tick event
      */
+    // onTimerTick() {
+    //     if (this.gameState === 'gameOver') {
+    //         return;
+    //     }
+
+    //     this.timeLeft--;
+
+    //     // Update timer text
+    //     this.timerText.setText(`Time: ${this.timeLeft}`);
+
+    //     // Check for game over
+    //     if (this.timeLeft <= 0) {
+    //         this.endGame();
+    //     }
+    // }
     onTimerTick() {
-        if (this.gameState === 'gameOver') {
-            return;
-        }
+        if (this.gameState === 'gameOver') return;
 
         this.timeLeft--;
+        this.updateMoonTimer();                       
+        this.timerText.setText(`${this.timeLeft}s`);
 
-        // Update timer text
-        this.timerText.setText(`Time: ${this.timeLeft}`);
-
-        // Check for game over
-        if (this.timeLeft <= 0) {
-            this.endGame();
-        }
+        if (this.timeLeft <= 0) this.endGame();
     }
 
     /**
