@@ -49,12 +49,11 @@ class HanabiGameScene extends Phaser.Scene {
         this.gameState = 'playing'; // can be 'playing' or 'gameOver'
 
         this.setupNightSkyBackground();
-
         this.setupLauncher();
-
+        this.setupComboDisplay();
         this.setupTimer();
-
-        this.setupWordBox();
+        this.setupScore();
+        this.setupGameOverScreen();
 
         // Load word list and set current target word
         const rawWordList = this.cache.text.get('words');
@@ -74,6 +73,7 @@ class HanabiGameScene extends Phaser.Scene {
         this.currentTierIndex = 0;
         this.targetWord = this.pickTargetWord();
 
+        this.setupWordBox();
         this.setupWordText();
 
         // Store user input
@@ -86,11 +86,9 @@ class HanabiGameScene extends Phaser.Scene {
         this.totalKeystrokes = 0;
         this.correctKeystrokes = 0;
 
-        // Score display
-        this.setupScore();
-
-        // Create game over overlay (hidden until game over)
-        this.setupGameOverScreen();
+        // Combo tracking
+        this.comboCount = 0;
+        this.longestCombo = 0;
     }
 
     /**
@@ -295,8 +293,8 @@ class HanabiGameScene extends Phaser.Scene {
      */
 
     setupTimer() {
-        this.timeLeft  = 5;
-        this.totalTime = 5;
+        this.timeLeft = 60; // seconds
+        this.totalTime = 60;
 
         const R  = 38;
         this.moonR = R;
@@ -350,6 +348,104 @@ class HanabiGameScene extends Phaser.Scene {
             loop: true
         });
     }
+
+    /**
+     * Create and position the combo streak display
+     */
+    setupComboDisplay() {
+        // Container sits just above the score, left-aligned
+        const cx = 200;
+        const cy = 20;
+ 
+        // Flame emoji label
+        this.comboLabel = this.add.text(cx, cy, '🔥 Combo', {
+            fontFamily: 'Comic Sans MS',
+            fontSize: '18px',
+            color: '#ff9900',
+        }).setAlpha(0).setDepth(5);
+ 
+        // Large combo number
+        const labelH = this.comboLabel.height;
+        this.comboCountText = this.add.text(cx, cy + labelH, 'x0', {
+            fontFamily: 'Comic Sans MS',
+            fontSize: '36px',
+            fontStyle: 'bold',
+            color: '#FFD700',
+            stroke: '#7a3000',
+            strokeThickness: 3,
+        }).setAlpha(0).setDepth(5);
+ 
+        this.comboCountText.setShadow(0, 0, '#ff6600', 12, true, true);
+    }
+
+
+    /**
+     * Increment combo counter and animate the display
+     */
+    incrementCombo() {
+        this.comboCount++;
+        if (this.comboCount > this.longestCombo) {
+            this.longestCombo = this.comboCount;
+        }
+ 
+        this.comboCountText.setText(`x${this.comboCount}`);
+ 
+        // Kill any running tweens before adding new ones
+        this.tweens.killTweensOf([this.comboLabel, this.comboCountText]);
+ 
+        if (this.comboCount === 1) {
+            // First combo: drop in from slightly above with a bounce
+            this.comboLabel.setAlpha(1);
+            this.comboCountText.setAlpha(1).setScale(1);
+            const baseY = this.comboLabel.y + this.comboLabel.height;
+            this.comboCountText.setY(baseY - 18);
+            this.tweens.add({
+                targets: this.comboCountText,
+                y: baseY,
+                duration: 320,
+                ease: 'Bounce.Out'
+            });
+        } else {
+            // Each new word: nudge up then snap back down (quick whip)
+            const baseY = this.comboLabel.y + this.comboLabel.height;
+            this.comboCountText.setY(baseY - 10);
+            this.tweens.add({
+                targets: this.comboCountText,
+                y: baseY,
+                duration: 250,
+                ease: 'Bounce.Out'
+            });
+        }
+
+ 
+        // Extra flash colour at milestone combos (5, 10, 15…)
+        if (this.comboCount > 0 && this.comboCount % 5 === 0) {
+            this.comboCountText.setColor('#ffffff');
+            this.time.delayedCall(320, () => this.comboCountText.setColor('#FFD700'));
+        }
+    }
+
+    /**
+     * Reset combo counter and animate break feedback
+     */
+    breakCombo() {
+        if (this.comboCount === 0) return;
+ 
+        this.comboCount = 0;
+        this.comboCountText.setText('x0');
+ 
+        // Brief red flash then fade out
+        this.comboCountText.setColor('#ff4444');
+        this.tweens.killTweensOf([this.comboLabel, this.comboCountText]);
+        this.tweens.add({
+            targets: [this.comboLabel, this.comboCountText],
+            alpha: 0,
+            duration: 600,
+            delay: 300,
+            onComplete: () => this.comboCountText.setColor('#FFD700')
+        });
+    }
+ 
 
     /**
      * Create score display in top-left corner, with current score and best score
@@ -485,7 +581,7 @@ class HanabiGameScene extends Phaser.Scene {
         this.finalScoreText.setShadow(0, 0, '#88ccff', 8, true, true);
 
         // Accuracy label
-        this.accuracyText = this.add.text(centerX, centerY + 30, 'Accuracy: --%', {
+        this.accuracyText = this.add.text(centerX, centerY + 30, '🎯 Accuracy: --%', {
             fontFamily: 'Comic Sans MS',
             fontSize: '24px',
             color: '#aaccff',
@@ -493,6 +589,16 @@ class HanabiGameScene extends Phaser.Scene {
             strokeThickness: 1,
         }).setOrigin(0.5);
         this.accuracyText.setShadow(0, 0, '#4488ff', 6, true, true);
+
+        // Longest combo label
+        this.longestComboText = this.add.text(centerX, centerY + 60, '🔥 Longest combo: 0', {
+            fontFamily: 'Comic Sans MS',
+            fontSize: '22px',
+            color: '#ff9900',
+            stroke: '#3a1000',
+            strokeThickness: 1,
+        }).setOrigin(0.5);
+        this.longestComboText.setShadow(0, 0, '#ff6600', 8, true, true);
  
          // Restart button — rounded rect background + label
         const btnW = 200;
@@ -535,8 +641,8 @@ class HanabiGameScene extends Phaser.Scene {
  
         this.gameOverContainer.add([
             backdrop, panel, divider, kanjiWatermark,
-            this.gameOverText, this.finalScoreText,
-            this.accuracyText,this.highScoreText, 
+            this.gameOverText, this.highScoreText, this.finalScoreText,
+            this.accuracyText,this.longestComboText,
             this.restartBtnBg, this.restartPromptText, this.restartBtnZone
         ]);
     }
@@ -614,6 +720,7 @@ class HanabiGameScene extends Phaser.Scene {
                     // Accuracy tracking
                     this.correctKeystrokes++;
                 } else {
+                    this.breakCombo(); // reset combo on mistake
                     const originalX = this.wordBox.x;
 
                     // Shake the word box horizontally to indicate error
@@ -632,17 +739,11 @@ class HanabiGameScene extends Phaser.Scene {
                 // Check if user input matches target word
                 if (this.userInput === this.targetWord) {
                     // Increment score based on word length
-                    const points = WORD_SCORES[this.targetWord.length] ?? 600;
-                    this.score += points;
+                    const basePoints  = WORD_SCORES[this.targetWord.length] ?? 600;
+                    const multiplier =  Math.min(Math.floor(this.comboCount / 5) + 1, 5); // combo multiplier increases every 5 words, up to 5x
+                    const earnedPoints = basePoints * multiplier;
+                    this.score += earnedPoints;
                     this.scoreText.setText(this.score.toLocaleString());
-                    this.tweens.add({
-                        targets: this.scoreText,
-                        scaleX: 1.25,
-                        scaleY: 1.25,
-                        duration: 90,
-                        ease: 'Sine.Out',
-                        yoyo: true,
-                    });
 
                    if (this.score > this.currentHighScore) {
                         this.currentHighScore = this.score; // update cache so this only triggers once per threshold cross
@@ -657,6 +758,8 @@ class HanabiGameScene extends Phaser.Scene {
                     if (nextTier && this.score >= nextTier.minScore) {
                         this.currentTierIndex++;
                     }
+
+                    this.incrementCombo();
 
                     // Stop moving launcher temporarily
                     this.launcher.isMoving = false;
@@ -863,17 +966,7 @@ class HanabiGameScene extends Phaser.Scene {
         this.scoreDivider.setVisible(false);
         this.bestLabelText.setVisible(false);
         this.bestScoreText.setVisible(false);
- 
-        // Update final score text
-        this.finalScoreText.setText(`Score: ${this.score}`);
 
-        // Calculate accuracy
-        const accuracy = this.totalKeystrokes > 0
-            ? Math.round((this.correctKeystrokes / this.totalKeystrokes) * 100)
-            : 100;
-        const accuracyColor = accuracy >= 90 ? '#72d677' : accuracy >= 70 ? '#FFD700' : '#ff6b6b';
-        this.accuracyText.setText(`Accuracy: ${accuracy}%`);
- 
         // Check high score
         if (this.isNewHighScore) {
             localStorage.setItem('kataHanabiHighScore', this.score);
@@ -885,6 +978,18 @@ class HanabiGameScene extends Phaser.Scene {
             });
         }
  
+        // Update final score text
+        this.finalScoreText.setText(`Score: ${this.score}`);
+
+        // Calculate accuracy
+        const accuracy = this.totalKeystrokes > 0
+            ? Math.round((this.correctKeystrokes / this.totalKeystrokes) * 100)
+            : 100;
+        this.accuracyText.setText(`🎯 Accuracy: ${accuracy}%`);
+        
+        // Longest combo
+        this.longestComboText.setText(`🔥 Longest combo: ${this.longestCombo} words`);
+
         // Animate overlay in: fade + scale from center
         this.gameOverContainer.setVisible(true);
         this.gameOverContainer.setAlpha(0);
